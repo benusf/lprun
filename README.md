@@ -44,11 +44,11 @@ printers from the terminal, without relying on heavy GUI utilities.
 -   🧱 Clean, modular C project structure:
 
         src/
-          discover.c
+          disc.c
           print.c
           util.c
         include/
-          discover.h
+          disc.h
           print.h
           util.h
 
@@ -143,12 +143,12 @@ lprun --raw --host 192.168.1.50 --file mydoc.txt
     │
     ├── src/
     │   ├── main.c
-    │   ├── discover.c
+    │   ├── disc.c
     │   ├── print.c
     │   ├── util.c
     │
     ├── include/
-    │   ├── discover.h
+    │   ├── disc.h
     │   ├── print.h
     │   ├── util.h
     │
