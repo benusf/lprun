@@ -3,10 +3,11 @@ project(lprun VERSION 1.2.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_EXTENSIONS OFF)
-
 add_compile_options(-Wall -Wextra -pedantic)
 
-# Source files
+# -----------------------
+# Sources
+# -----------------------
 set(SRC
     src/main.c
     src/disc.c
@@ -15,31 +16,45 @@ set(SRC
     src/utils.c
 )
 
-# Executable
 add_executable(lprun ${SRC})
-
-# Header directory
 target_include_directories(lprun PRIVATE include)
 
-# CUPS detection
-find_package(CUPS REQUIRED)
-target_link_libraries(lprun PRIVATE CUPS::CUPS)
+# -----------------------
+# Find CUPS: try pkg-config first
+# -----------------------
+find_package(PkgConfig)
+
+if(PKG_CONFIG_FOUND)
+    # QUIET avoids fatal error if libcups.pc not found
+    pkg_check_modules(CUPS QUIET IMPORTED_TARGET libcups)
+    if(CUPS_FOUND)
+        message(STATUS "Using CUPS via pkg-config")
+        target_include_directories(lprun PRIVATE ${CUPS_INCLUDE_DIRS})
+        target_link_libraries(lprun PRIVATE ${CUPS_LIBRARIES})
+    else()
+        message(WARNING "pkg-config found, but libcups not found. Falling back to manual linking")
+        target_include_directories(lprun PRIVATE /usr/include/cups)
+        target_link_libraries(lprun PRIVATE cups)
+    endif()
+else()
+    message(WARNING "pkg-config not found. Falling back to manual linking")
+    target_include_directories(lprun PRIVATE /usr/include/cups)
+    target_link_libraries(lprun PRIVATE cups)
+endif()
 
 # -----------------------
 # Install Rules
 # -----------------------
-
-# Install binary into system bin directory
 install(TARGETS lprun
-    RUNTIME DESTINATION bin
-)
+        RUNTIME DESTINATION bin)
 
-# Install headers (optional)
-install(DIRECTORY include/lprun    DESTINATION include/lprun
-    FILES_MATCHING PATTERN "*.h"
-)
+install(DIRECTORY include/
+        DESTINATION include/lprun
+        FILES_MATCHING PATTERN "*.h")
 
-# Install package config (optional)
+# -----------------------
+# Optional package config
+# -----------------------
 include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
@@ -55,10 +70,9 @@ write_basic_package_version_file(
 )
 
 install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/myprinterConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/lprunConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/lprunConfigVersion.cmake"
     DESTINATION lib/cmake/lprun
 )
 
-# Print version info
 message(STATUS "Building lprun version ${PROJECT_VERSION}")

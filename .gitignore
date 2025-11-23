@@ -1,1 +1,47 @@
-build
+# Build directories
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/Makefile
+/*.cmake
+
+# Binary files
+lprun
+*.o
+*.obj
+*.exe
+*.out
+
+# Install artifacts
+/usr/local/bin/lprun
+/usr/local/include/lprun
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*.swn
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs
+*.log
+
+# Archive / zip
+*.zip
+*.tar.gz
+*.tgz
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Testing/
+Makefile
+
+# Temporary files
+*~
