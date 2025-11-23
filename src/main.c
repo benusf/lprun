@@ -9,16 +9,37 @@
 #include "print_cups.h"
 #include "print_raw.h"
 #include "utils.h"
+#include "printer_list.h"
 
-static void usage(const char *prog) {
-    fprintf(stderr,
-        "Usage: %s [--printer CUPS_NAME] [--ip IP] [--port PORT]\n"
-        "          (--text \"text\" | --image file | --file file) [--copies N]\n\n"
-        "Examples:\n"
-        "  %s --text \"Hello world\"\n"
-        "  %s --printer \"Canon_G3020_series\" --file doc.pdf\n"
-        "  %s --ip 192.168.1.40 --image photo.png --copies 2\n",
-        prog, prog, prog, prog);
+// static void usage(const char *prog) {
+//     fprintf(stderr,
+//         "Usage: %s [--printer CUPS_NAME] [--ip IP] [--port PORT]\n"
+//         "          (--text \"text\" | --image file | --file file) [--copies N]\n\n"
+//         "Examples:\n"
+//         "  %s --text \"Hello world\"\n"
+//         "  %s --printer \"Canon_G3020_series\" --file doc.pdf\n"
+//         "  %s --ip 192.168.1.40 --image photo.png --copies 2\n",
+//         prog, prog, prog, prog);
+// }
+
+
+void print_usage(void) {
+    printf("\n");
+    printf("lprun - Command-line printer tool\n");
+    printf("\nUsage:\n");
+    printf("  lprun --list\n");
+    printf("      List all available printers.\n");
+    printf("\n");
+    printf("  lprun --printer <name> --text \"Hello World\" [--copies N]\n");
+    printf("      Print text to the specified printer.\n");
+    printf("\n");
+    printf("  lprun --printer <name> --image <file.png> [--copies N]\n");
+    printf("      Print an image file to the specified printer.\n");
+    printf("\nExamples:\n");
+    printf("  lprun --list\n");
+    printf("  lprun --printer Canon_G3020 --text \"Hello World\" --copies 2\n");
+    printf("  lprun --printer Canon_G3020 --image img.png\n");
+    printf("\n");
 }
 
 int main(int argc, char **argv) {
@@ -30,7 +51,14 @@ int main(int argc, char **argv) {
     const char *file = NULL;
     int copies = 1;
 
-    if (argc == 1) { usage(argv[0]); return 1; }
+    if (argc < 2) { print_usage(); return 1; }
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "--list") == 0) {
+            list_printers();
+            return 0;  // exit after listing printers
+        }
+    }
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--printer") == 0 && i+1 < argc) printer_name = argv[++i];
@@ -40,12 +68,15 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--image") == 0 && i+1 < argc) image = argv[++i];
         else if (strcmp(argv[i], "--file") == 0 && i+1 < argc) file = argv[++i];
         else if (strcmp(argv[i], "--copies") == 0 && i+1 < argc) copies = atoi(argv[++i]);
-        else { usage(argv[0]); return 1; }
+        else { print_usage(); return 1; }
     }
+
+    printf("Usage: lprun --list\n");
+    // TODO: handle printing, scanning, etc.
 
     if (!(text || image || file)) {
         fprintf(stderr, "Error: one of --text / --image / --file required\n");
-        usage(argv[0]);
+        print_usage();
         return 2;
     }
 
