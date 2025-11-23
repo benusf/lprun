@@ -58,17 +58,6 @@ printers from the terminal, without relying on heavy GUI utilities.
 
 ## 📦 Build & Installation
 
-### **Using Makefile**
-
-``` bash
-make
-sudo make install
-```
-
-Binary will be installed to:
-
-    /usr/local/bin/lprun
-
 ### **Using CMake**
 
 ``` bash
@@ -86,7 +75,7 @@ sudo make install
 ### **List detected printers**
 
 ``` bash
-lprun --discover
+lprun --list
 ```
 
 ### **Print simple text**
