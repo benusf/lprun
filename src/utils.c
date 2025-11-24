@@ -28,35 +28,98 @@ char *create_temp_with_suffix(const char *suffix) {
     return out;
 }
 
-char *create_temp_ps_from_text(const char *text) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    FILE *f = fopen(out, "w");
-    if (!f) { free(out); return NULL; }
-    fprintf(f, "%%!PS-Adobe-3.0\n/Times-Roman findfont 14 scalefont setfont\n72 700 moveto\n(%s) show\nshowpage\n", text);
+char *create_temp_ps_from_text(const char *text, int color_mode)
+{
+    char tmpl[] = "/tmp/lprun_text_XXXXXX.ps";
+    int fd = mkstemps(tmpl, 3);
+    if (fd < 0) return NULL;
+
+    FILE *f = fdopen(fd, "w");
+    if (!f) return NULL;
+
+    fprintf(f, "%%!PS-Adobe-3.0\n"
+               "/Courier findfont 12 scalefont setfont\n"
+               "50 750 moveto\n"
+               "(%s) show\n"
+               "showpage\n", text);
+
     fclose(f);
-    return out;
+
+    // If grayscale mode requested → convert using ImageMagick
+    if (color_mode == 2) {
+        char grayfile[256];
+        snprintf(grayfile, sizeof(grayfile), "%s_gray.ps", tmpl);
+
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "convert %s -colorspace Gray %s",
+                 tmpl, grayfile);
+
+        system(cmd);
+        unlink(tmpl);
+        return strdup(grayfile);
+    }
+
+    return strdup(tmpl);
 }
 
-char *convert_image_to_ps(const char *imagepath) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    /* Use ImageMagick 'convert' to produce PostScript */
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "convert %s -page A4 %s", escape_shell_arg(imagepath), out);
-    int rc = system(cmd);
-    if (rc != 0) { unlink(out); free(out); return NULL; }
-    return out;
+char *convert_image_to_ps(const char *path, int color_mode)
+{
+    char tmpl[] = "/tmp/lprun_img_XXXXXX.ps";
+    int fd = mkstemps(tmpl, 3);
+    if (fd < 0) return NULL;
+    close(fd);
+
+    char cmd[512];
+
+    if (color_mode == 2) {
+        // grayscale conversion
+        snprintf(cmd, sizeof(cmd),
+            "convert %s -colorspace Gray %s",
+            path, tmpl);
+    } else {
+        // normal conversion
+        snprintf(cmd, sizeof(cmd),
+            "convert %s %s",
+            path, tmpl);
+    }
+
+    if (system(cmd) != 0) return NULL;
+
+    return strdup(tmpl);
 }
 
-char *convert_pdf_to_ps(const char *pdfpath) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "gs -q -dNOPAUSE -dBATCH -sDEVICE=ps2write -sOutputFile=%s %s", escape_shell_arg(out), escape_shell_arg(pdfpath));
-    int rc = system(cmd);
-    if (rc != 0) { unlink(out); free(out); return NULL; }
-    return out;
+char *convert_pdf_to_ps(const char *path, int color_mode)
+{
+    char tmpl[] = "/tmp/lprun_pdf_XXXXXX.ps";
+    int fd = mkstemps(tmpl, 3);
+    if (fd < 0) return NULL;
+    close(fd);
+
+    char cmd[512];
+
+    // convert PDF → PS
+    snprintf(cmd, sizeof(cmd),
+        "pdftops %s %s",
+        path, tmpl);
+
+    if (system(cmd) != 0) return NULL;
+
+    // grayscale?
+    if (color_mode == 2) {
+        char grayfile[256];
+        snprintf(grayfile, sizeof(grayfile), "%s_gray.ps", tmpl);
+
+        snprintf(cmd, sizeof(cmd),
+            "convert %s -colorspace Gray %s",
+            tmpl, grayfile);
+
+        system(cmd);
+        unlink(tmpl);
+        return strdup(grayfile);
+    }
+
+    return strdup(tmpl);
 }
 
 /* get first non-loopback IPv4 interface and return base /24 CIDR like "192.168.1.0/24" */
@@ -109,4 +172,29 @@ void trim(char *s) {
 const char *escape_shell_arg(const char *s) {
     /* naive: relies on filenames without single quotes; safe in most home-use cases */
     return s;
+}
+
+
+long get_file_size(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    long s = ftell(f);
+    fclose(f);
+    return s;
+}
+
+
+void progress_bar(int percent)
+{
+    const int width = 40; // number of blocks
+    int filled = (percent * width) / 100;
+
+    printf("\r[");
+    for (int i = 0; i < filled; i++) printf("#");
+    for (int i = filled; i < width; i++) printf(" ");
+    printf("] %d%%", percent);
+    fflush(stdout);
+
+    if (percent == 100) printf("\n");
 }

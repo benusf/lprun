@@ -10,37 +10,75 @@
 #include "print_raw.h"
 #include "utils.h"
 #include "printer_list.h"
-
-// static void usage(const char *prog) {
-//     fprintf(stderr,
-//         "Usage: %s [--printer CUPS_NAME] [--ip IP] [--port PORT]\n"
-//         "          (--text \"text\" | --image file | --file file) [--copies N]\n\n"
-//         "Examples:\n"
-//         "  %s --text \"Hello world\"\n"
-//         "  %s --printer \"Canon_G3020_series\" --file doc.pdf\n"
-//         "  %s --ip 192.168.1.40 --image photo.png --copies 2\n",
-//         prog, prog, prog, prog);
-// }
-
+#include "history.h"
+#include "scanner.h"
 
 void print_usage(void) {
     printf("\n");
-    printf("lprun - Command-line printer tool\n");
-    printf("\nUsage:\n");
+    printf("lprun - Advanced command-line printer & scanner tool\n");
+    printf("----------------------------------------------------\n\n");
+
+    printf("USAGE:\n");
     printf("  lprun --list\n");
-    printf("      List all available printers.\n");
+    printf("  lprun --printer <name> [OPTIONS]\n");
+    printf("  lprun --ip <address> [--port <port>] [OPTIONS]\n");
+    printf("  lprun scanner [--pdf | --img]\n");
+    printf("  lprun history\n");
     printf("\n");
-    printf("  lprun --printer <name> --text \"Hello World\" [--copies N]\n");
-    printf("      Print text to the specified printer.\n");
+
+    printf("PRINT OPTIONS:\n");
+    printf("  --text \"STRING\"         Print plain text\n");
+    printf("  --image <file>           Print an image (PNG/JPG/WebP)\n");
+    printf("  --file <file>            Print any file (PDF, PS, etc.)\n");
+    printf("  --copies N               Print multiple copies (default: 1)\n");
     printf("\n");
-    printf("  lprun --printer <name> --image <file.png> [--copies N]\n");
-    printf("      Print an image file to the specified printer.\n");
-    printf("\nExamples:\n");
+
+    printf("COLOR OPTIONS:\n");
+    printf("  --color                  Force color printing\n");
+    printf("  --grayscale              Convert to grayscale before printing\n");
+    printf("                           (applies to text/image/pdf conversion)\n");
+    printf("\n");
+
+    printf("PRINTER SELECTION:\n");
+    printf("  --list                   List available printers via CUPS\n");
+    printf("  --printer <name>         Use a specific CUPS printer\n");
+    printf("  --ip <addr>              Send raw job directly to printer (LAN)\n");
+    printf("  --port <port>            Raw printing port (default: 9100)\n");
+    printf("\n");
+
+    printf("SCANNER MODULE:\n");
+    printf("  lprun scanner --pdf      Scan a page and save as PDF\n");
+    printf("  lprun scanner --img      Scan a page and save as PNG\n");
+    printf("\n");
+
+    printf("HISTORY:\n");
+    printf("  lprun history            Show print history (coming soon)\n");
+    printf("\n");
+
+    printf("EXAMPLES:\n");
     printf("  lprun --list\n");
-    printf("  lprun --printer Canon_G3020 --text \"Hello World\" --copies 2\n");
-    printf("  lprun --printer Canon_G3020 --image img.png\n");
+    printf("      List CUPS printers\n\n");
+
+    printf("  lprun --printer Canon_G3020 --text \"Hello World\"\n");
+    printf("      Print text using a CUPS-managed printer\n\n");
+
+    printf("  lprun --printer Canon_G3020 --image img.png --copies 2\n");
+    printf("      Print an image twice\n\n");
+
+    printf("  lprun --file doc.pdf --grayscale\n");
+    printf("      Convert PDF to grayscale before printing\n\n");
+
+    printf("  lprun --ip 192.168.1.40 --file doc.pdf\n");
+    printf("      Use RAW socket printing\n\n");
+
+    printf("  lprun scanner --pdf\n");
+    printf("      Scan a page as PDF\n\n");
+
+    printf("----------------------------------------------------\n");
+    printf("Visit: https://github.com/benusf/lprun\n");
     printf("\n");
 }
+
 
 int main(int argc, char **argv) {
     const char *printer_name = NULL;
@@ -50,14 +88,51 @@ int main(int argc, char **argv) {
     const char *image = NULL;
     const char *file = NULL;
     int copies = 1;
+    int color_mode = 0;
 
-    if (argc < 2) { print_usage(); return 1; }
+    if (argc < 2) { printf("For help use --help"); return 1; }
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "--help") == 0) {
+            print_usage();
+            return 0;  // exit after listing printers
+        }
+    }
 
     if (argc > 1) {
         if (strcmp(argv[1], "--list") == 0) {
             list_printers();
             return 0;  // exit after listing printers
         }
+    }
+
+    // --- Scanner Commands ---
+    if (strcmp(argv[1], "scanner") == 0) {
+        if (argc < 4) {
+            printf("Usage:\n");
+            printf("  lprun scanner --pdf <output.pdf>\n");
+            printf("  lprun scanner --img <output.png>\n");
+            return 1;
+        }
+
+        const char *mode = argv[2];
+        const char *outfile = argv[3];
+
+        if (strcmp(mode, "--pdf") == 0) {
+            return scanner_scan_pdf(outfile);
+        }
+        else if (strcmp(mode, "--img") == 0) {
+            return scanner_scan_img(outfile);
+        }
+        else {
+            fprintf(stderr, "Unknown scanner mode: %s\n", mode);
+            return 1;
+        }
+    }
+
+    if (color_mode == 1 && color_mode == 2) {
+        fprintf(stderr, "Error: Cannot use both --color and --grayscale.\n");
+        return 1;
     }
 
     for (int i = 1; i < argc; ++i) {
@@ -68,6 +143,10 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--image") == 0 && i+1 < argc) image = argv[++i];
         else if (strcmp(argv[i], "--file") == 0 && i+1 < argc) file = argv[++i];
         else if (strcmp(argv[i], "--copies") == 0 && i+1 < argc) copies = atoi(argv[++i]);
+        else if (strcmp(argv[1], "history") == 0) { history_show(); return 0; }
+        else if (strcmp(argv[i], "--color") == 0) color_mode = 1;
+        else if (strcmp(argv[i], "--grayscale") == 0) color_mode = 2;
+
         else { print_usage(); return 1; }
     }
 
@@ -106,17 +185,17 @@ int main(int argc, char **argv) {
     int owns_out = 0;
 
     if (text) {
-        out = create_temp_ps_from_text(text);
+        out = create_temp_ps_from_text(text, color_mode);
         if (!out) { fprintf(stderr, "Failed to create PS from text\n"); return 4; }
         owns_out = 1;
     } else if (image) {
-        out = convert_image_to_ps(image);
+        out = convert_image_to_ps(image, color_mode);
         if (!out) { fprintf(stderr, "Failed to convert image\n"); return 5; }
         owns_out = 1;
     } else {
         /* file: if PDF => convert to PS for max compatibility; else send as-is */
         if (ends_with_ci(file, ".pdf")) {
-            out = convert_pdf_to_ps(file);
+            out = convert_pdf_to_ps(file, color_mode);
             if (!out) { fprintf(stderr, "Failed to convert PDF\n"); return 6; }
             owns_out = 1;
         } else {
@@ -130,10 +209,28 @@ int main(int argc, char **argv) {
         /* Use CUPS */
         printf("Sending to CUPS printer: %s (copies=%d)\n", printer_name, copies);
         for (int i = 0; i < copies; ++i) {
-            int job = cups_print_file(printer_name, out);
+            cups_option_t *options = NULL;
+            int num_options = 0;
+
+            // progress bar
+            int percent = (int)((100.0 * i) / copies);
+            progress_bar(percent);
+
+            if (color_mode == 1)
+            num_options = cupsAddOption("ColorModel", "Color", num_options, &options);
+            else if (color_mode == 2)
+            num_options = cupsAddOption("ColorModel", "Gray", num_options, &options);
+
+            int job = cupsPrintFile(printer_name, out, "lprun-job", num_options, options);
+
+            cupsFreeOptions(num_options, options);
             if (job <= 0) { fprintf(stderr, "CUPS print failed: %s\n", cupsLastErrorString()); rc = 20; break; }
             printf("Submitted job id: %d\n", job);
+            history_add(printer_name, file);
         }
+
+        progress_bar(100);
+
     } else { /* ip path */
         printf("Sending to raw printer %s:%d (copies=%d)\n", ip, port, copies);
         rc = send_file_raw(ip, port, out, copies);

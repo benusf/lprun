@@ -15,6 +15,10 @@ set(SRC
     src/print_raw.c
     src/utils.c
     src/printer_list.c
+    src/history.c
+    src/scanner.c
+    src/progress.c
+
 )
 
 add_executable(lprun ${SRC})
