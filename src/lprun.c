@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
     }
 
     /* Check for history */
-    if (strcmp(argv[1], "history") == 0) {
+    if (strcmp(argv[1], "--history") == 0) {
         history_show();
         return 0;
     }

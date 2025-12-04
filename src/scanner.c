@@ -178,9 +178,11 @@ int scanner_scan_img(const char *out_dir, const char *filename)
     pthread_join(spinner_tid, NULL);
     
     if (rc == 0) {
-        printf("Scan completed successfully!\n");
+        printf("\n");
+        printf("✓ Scan completed successfully!\n");
     } else {
-        fprintf(stderr, "Scan failed with code %d\n", rc);
+        printf("\n");
+        fprintf(stderr, "✗ Scan failed with code %d\n", rc);      
     }
     
     return rc;
