@@ -131,7 +131,7 @@ lprun --raw --host 192.168.1.50 --file mydoc.txt
     lprun/
     │
     ├── src/
-    │   ├── main.c
+    │   ├── lprun.c
     │   ├── disc.c
     │   ├── print.c
     │   ├── util.c
