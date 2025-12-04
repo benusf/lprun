@@ -2,7 +2,7 @@
 /build/
 /CMakeFiles/
 /CMakeCache.txt
-/Makefile
+/cmake
 /*.cmake
 
 # Binary files

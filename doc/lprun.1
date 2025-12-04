@@ -1,0 +1,46 @@
+.TH LPRUN 1 "2024" "lprun v1.2.0" "User Commands"
+.SH NAME
+lprun - advanced command-line printer and scanner tool
+.SH SYNOPSIS
+.B lprun
+[\fIOPTIONS\fR]...
+.SH DESCRIPTION
+lprun is a command-line utility for printing documents and scanning pages.
+.SH OPTIONS
+.TP
+\fB--help\fR
+Show help message
+.TP
+\fB--list\fR
+List available printers
+.TP
+\fB--printer\fR \fINAME\fR
+Use specific CUPS printer
+.TP
+\fB--file\fR \fIFILE\fR
+Print a file (PDF, PS, etc.)
+.TP
+\fB--text\fR \fITEXT\fR
+Print plain text
+.TP
+\fB--image\fR \fIFILE\fR
+Print an image
+.TP
+\fBscanner --pdf\fR \fIFILE\fR
+Scan to PDF
+.TP
+\fBscanner --img\fR \fIFILE\fR
+Scan to PNG
+.SH EXAMPLES
+Print a PDF:
+.B lprun --file document.pdf
+.PP
+Scan a page:
+.B lprun scanner --pdf scan.pdf
+.PP
+Print text:
+.B lprun --text "Hello World"
+.SH AUTHOR
+Written by $(AUTHOR)
+.SH SEE ALSO
+lp(1), lpr(1), scanimage(1)
