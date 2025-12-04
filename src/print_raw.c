@@ -9,10 +9,26 @@
 #include <time.h>
 #include <errno.h>
 
-/* send file to ip:port copies times, returns 0 on success */
+/* progress bar helper */
+static void progress_bar(double progress) {
+    int barWidth = 40;
+    int pos = (int)(progress * barWidth);
+
+    printf("\r[");
+    for (int i = 0; i < barWidth; ++i) {
+        if (i < pos) printf("=");
+        else if (i == pos) printf(">");
+        else printf(" ");
+    }
+    printf("] %3.0f%%", progress * 100);
+    fflush(stdout);
+}
+
 int send_file_raw(const char *ip, int port, const char *filename, int copies) {
     if (!ip || !filename) return -1;
+
     for (int c = 0; c < copies; ++c) {
+
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) { perror("socket"); return -2; }
 
@@ -34,24 +50,38 @@ int send_file_raw(const char *ip, int port, const char *filename, int copies) {
         FILE *f = fopen(filename, "rb");
         if (!f) { perror("fopen"); close(sock); return -5; }
 
+        /* get file size */
+        fseek(f, 0, SEEK_END);
+        long total = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        long sent_total = 0;
         char buf[8192];
         size_t n;
+
+        printf("Sending copy %d/%d...\n", c+1, copies);
+
         while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
             ssize_t sent = 0;
             while (sent < (ssize_t)n) {
                 ssize_t s = send(sock, buf + sent, n - sent, 0);
                 if (s < 0) { perror("send"); fclose(f); close(sock); return -6; }
                 sent += s;
+                sent_total += s;
+
+                /* Update progress bar */
+                progress_bar((double)sent_total / (double)total);
             }
         }
 
+        printf("\nCopy %d complete\n", c + 1);
+
         fclose(f);
         close(sock);
-        printf("Sent copy %d/%d\n", c+1, copies);
 
-        /* short pause between copies */
-        struct timespec ts = {0, 200000000}; /* 200ms */
+        struct timespec ts = {0, 200000000};
         nanosleep(&ts, NULL);
     }
+
     return 0;
 }

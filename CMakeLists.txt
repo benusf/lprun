@@ -3,22 +3,30 @@ project(lprun VERSION 1.2.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_EXTENSIONS OFF)
-add_compile_options(-Wall -Wextra -pedantic)
+add_compile_options(-Wall -Wextra -pedantic -std=c11 -D_DEFAULT_SOURCE -pthread)
 
 # -----------------------
 # Sources
 # -----------------------
 set(SRC
-    src/main.c
+    src/lprun.c
     src/disc.c
     src/print_cups.c
     src/print_raw.c
     src/utils.c
     src/printer_list.c
+    src/history.c
+    src/scanner.c
 )
 
+find_package(Threads REQUIRED)
+
+# ONLY ONE add_executable FOR lprun!
 add_executable(lprun ${SRC})
 target_include_directories(lprun PRIVATE include)
+
+# Link pthreads FIRST
+target_link_libraries(lprun PRIVATE Threads::Threads)
 
 # -----------------------
 # Find CUPS: try pkg-config first
@@ -31,7 +39,8 @@ if(PKG_CONFIG_FOUND)
     if(CUPS_FOUND)
         message(STATUS "Using CUPS via pkg-config")
         target_include_directories(lprun PRIVATE ${CUPS_INCLUDE_DIRS})
-        target_link_libraries(lprun PRIVATE ${CUPS_LIBRARIES})
+        # Use keyword signature for consistency
+        target_link_libraries(lprun PRIVATE PkgConfig::CUPS)
     else()
         message(WARNING "pkg-config found, but libcups not found. Falling back to manual linking")
         target_include_directories(lprun PRIVATE /usr/include/cups)

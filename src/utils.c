@@ -13,6 +13,48 @@
 #include <netdb.h>
 #include <ctype.h>
 
+/* Helper: check if command exists */
+static int command_exists(const char *cmd) {
+    char test_cmd[256];
+    snprintf(test_cmd, sizeof(test_cmd), "command -v %s >/dev/null 2>&1", cmd);
+    return system(test_cmd) == 0;
+}
+
+/* Helper: get ImageMagick command (magick for v7, convert for v6) */
+static const char *get_imagemagick_cmd(void) {
+    static int checked = 0;
+    static const char *cmd = NULL;
+
+    if (!checked) {
+        if (command_exists("magick")) {
+            cmd = "magick";
+        } else if (command_exists("convert")) {
+            cmd = "convert";
+        }
+        checked = 1;
+    }
+    return cmd;
+}
+
+/* Helper: create temp file with extension */
+static char *create_temp_file(const char *prefix, const char *ext) {
+    char tmpl[256];
+    snprintf(tmpl, sizeof(tmpl), "/tmp/%s_XXXXXX%s", prefix, ext);
+    int fd = mkstemps(tmpl, strlen(ext));
+    if (fd < 0) return NULL;
+    close(fd);
+    return strdup(tmpl);
+}
+
+/* Helper: run command and check status */
+static int run_command(const char *cmd) {
+    int status = system(cmd);
+    if (status != 0) {
+        fprintf(stderr, "Command failed (status %d): %s\n", status, cmd);
+    }
+    return status == 0;
+}
+
 /* create temporary filename with suffix; caller must free returned pointer */
 char *create_temp_with_suffix(const char *suffix) {
     char tmpl[] = "/tmp/myprinter-XXXXXX";
@@ -28,35 +70,177 @@ char *create_temp_with_suffix(const char *suffix) {
     return out;
 }
 
-char *create_temp_ps_from_text(const char *text) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    FILE *f = fopen(out, "w");
-    if (!f) { free(out); return NULL; }
-    fprintf(f, "%%!PS-Adobe-3.0\n/Times-Roman findfont 14 scalefont setfont\n72 700 moveto\n(%s) show\nshowpage\n", text);
+char *create_temp_ps_from_text(const char *text, int color_mode)
+{
+    char *out_file = create_temp_file("lprun_text", ".ps");
+    if (!out_file) return NULL;
+
+    FILE *f = fopen(out_file, "w");
+    if (!f) {
+        free(out_file);
+        return NULL;
+    }
+
+    /* Write simple PostScript text document */
+    fprintf(f, "%%!PS-Adobe-3.0\n"
+               "/Courier findfont 12 scalefont setfont\n"
+               "72 720 moveto\n"  // 1 inch from left, 10 inches from bottom
+               "(%s) show\n"
+               "showpage\n", text);
     fclose(f);
-    return out;
+
+    /* If grayscale requested, convert the PS file */
+    if (color_mode == 2) {
+        char *gray_file = create_temp_file("lprun_text_gray", ".ps");
+        if (!gray_file) {
+            free(out_file);
+            return NULL;
+        }
+
+        const char *img_cmd = get_imagemagick_cmd();
+        if (img_cmd) {
+            char cmd[512];
+            /* Use ImageMagick to convert to grayscale */
+            if (strcmp(img_cmd, "magick") == 0) {
+                snprintf(cmd, sizeof(cmd), "magick convert %s -colorspace Gray %s",
+                         out_file, gray_file);
+            } else {
+                snprintf(cmd, sizeof(cmd), "convert %s -colorspace Gray %s",
+                         out_file, gray_file);
+            }
+
+            if (run_command(cmd)) {
+                unlink(out_file);
+                free(out_file);
+                return gray_file;
+            }
+        }
+
+        /* ImageMagick not available or failed, keep original */
+        free(gray_file);
+        unlink(gray_file);
+    }
+
+    return out_file;
 }
 
-char *convert_image_to_ps(const char *imagepath) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    /* Use ImageMagick 'convert' to produce PostScript */
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "convert %s -page A4 %s", escape_shell_arg(imagepath), out);
-    int rc = system(cmd);
-    if (rc != 0) { unlink(out); free(out); return NULL; }
-    return out;
+char *convert_image_to_ps(const char *path, int color_mode)
+{
+    char *out_file = create_temp_file("lprun_img", ".ps");
+    if (!out_file) return NULL;
+
+    const char *img_cmd = get_imagemagick_cmd();
+    if (!img_cmd) {
+        fprintf(stderr, "ImageMagick not found (neither 'magick' nor 'convert')\n");
+        free(out_file);
+        return NULL;
+    }
+
+    char cmd[512];
+    if (color_mode == 2) {
+        /* Grayscale conversion */
+        if (strcmp(img_cmd, "magick") == 0) {
+            snprintf(cmd, sizeof(cmd), "magick convert \"%s\" -colorspace Gray \"%s\"",
+                     path, out_file);
+        } else {
+            snprintf(cmd, sizeof(cmd), "convert \"%s\" -colorspace Gray \"%s\"",
+                     path, out_file);
+        }
+    } else {
+        /* Normal conversion */
+        if (strcmp(img_cmd, "magick") == 0) {
+            snprintf(cmd, sizeof(cmd), "magick convert \"%s\" \"%s\"",
+                     path, out_file);
+        } else {
+            snprintf(cmd, sizeof(cmd), "convert \"%s\" \"%s\"",
+                     path, out_file);
+        }
+    }
+
+    if (!run_command(cmd)) {
+        free(out_file);
+        return NULL;
+    }
+
+    return out_file;
 }
 
-char *convert_pdf_to_ps(const char *pdfpath) {
-    char *out = create_temp_with_suffix(".ps");
-    if (!out) return NULL;
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "gs -q -dNOPAUSE -dBATCH -sDEVICE=ps2write -sOutputFile=%s %s", escape_shell_arg(out), escape_shell_arg(pdfpath));
-    int rc = system(cmd);
-    if (rc != 0) { unlink(out); free(out); return NULL; }
-    return out;
+
+char *convert_pdf_to_ps(const char *path, int color_mode)
+{
+    char *out_file = create_temp_file("lprun_pdf", ".ps");
+    if (!out_file) return NULL;
+
+    /* Try pdftops first (from poppler-utils) - it doesn't use ImageMagick */
+    if (command_exists("pdftops")) {
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "pdftops \"%s\" \"%s\"", path, out_file);
+
+        if (run_command(cmd)) {
+            /* pdftops doesn't support grayscale conversion, so we need to post-process */
+            if (color_mode == 2) {
+                char *gray_file = create_temp_file("lprun_pdf_gray", ".ps");
+                if (gray_file) {
+                    const char *img_cmd = get_imagemagick_cmd();
+                    if (img_cmd) {
+                        char convert_cmd[512];
+                        /* Use appropriate command based on ImageMagick version */
+                        if (strcmp(img_cmd, "magick") == 0) {
+                            snprintf(convert_cmd, sizeof(convert_cmd),
+                                     "magick convert \"%s\" -colorspace Gray \"%s\" 2>/dev/null",
+                                     out_file, gray_file);
+                        } else {
+                            snprintf(convert_cmd, sizeof(convert_cmd),
+                                     "convert \"%s\" -colorspace Gray \"%s\" 2>/dev/null",
+                                     out_file, gray_file);
+                        }
+
+                        /* Run conversion silently */
+                        if (system(convert_cmd) == 0) {
+                            unlink(out_file);
+                            free(out_file);
+                            return gray_file;
+                        }
+                    }
+                    /* Conversion failed, keep original */
+                    free(gray_file);
+                }
+            }
+            return out_file;
+        }
+    }
+
+    /* Try GhostScript (preferred for grayscale) */
+    if (command_exists("gs")) {
+        char cmd[1024];
+        if (color_mode == 2) {
+            /* Convert to grayscale PS using GhostScript */
+            snprintf(cmd, sizeof(cmd),
+                "gs -q -dNOPAUSE -dBATCH -sDEVICE=ps2write "
+                "-sColorConversionStrategy=Gray -dProcessColorModel=/DeviceGray "
+                "-dPDFSETTINGS=/printer -dCompatibilityLevel=1.4 "
+                "-dAutoRotatePages=/None -dEmbedAllFonts=true "
+                "-sOutputFile=\"%s\" \"%s\" 2>/dev/null",
+                out_file, path);
+        } else {
+            /* Normal PS conversion */
+            snprintf(cmd, sizeof(cmd),
+                "gs -q -dNOPAUSE -dBATCH -sDEVICE=ps2write "
+                "-dPDFSETTINGS=/printer -dCompatibilityLevel=1.4 "
+                "-dAutoRotatePages=/None -dEmbedAllFonts=true "
+                "-sOutputFile=\"%s\" \"%s\" 2>/dev/null",
+                out_file, path);
+        }
+
+        if (run_command(cmd)) {
+            return out_file;
+        }
+    }
+
+    /* All methods failed */
+    fprintf(stderr, "Failed to convert PDF to PS. Install poppler-utils (pdftops) or ghostscript (gs).\n");
+    free(out_file);
+    return NULL;
 }
 
 /* get first non-loopback IPv4 interface and return base /24 CIDR like "192.168.1.0/24" */
@@ -110,3 +294,27 @@ const char *escape_shell_arg(const char *s) {
     /* naive: relies on filenames without single quotes; safe in most home-use cases */
     return s;
 }
+
+
+long get_file_size(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    long s = ftell(f);
+    fclose(f);
+    return s;
+}
+
+// void progress_bar(int percent)
+// {
+//     const int width = 40; // number of blocks
+//     int filled = (percent * width) / 100;
+
+//     printf("\r[");
+//     for (int i = 0; i < filled; i++) printf("#");
+//     for (int i = filled; i < width; i++) printf(" ");
+//     printf("] %d%%", percent);
+//     fflush(stdout);
+
+//     if (percent == 100) printf("\n");
+// }
