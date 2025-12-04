@@ -288,7 +288,8 @@ int main(int argc, char **argv) {
     /* If printer name not provided, try to find one via CUPS or network discovery */
     if (!printer_name && !ip) {
         printf("Discovering CUPS/network printers...\n");
-        print_progress_bar(10);
+
+        //print_progress_bar(10); TODO: FIX THIS FUNCTION
         fflush(stdout);
 
         /* prefer CUPS printers */
@@ -310,7 +311,7 @@ int main(int argc, char **argv) {
                 return 3;
             }
         }
-    }g
+    }
 
     /* Prepare an output file to send */
     char *out = NULL;

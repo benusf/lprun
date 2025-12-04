@@ -117,8 +117,10 @@ char *create_temp_ps_from_text(const char *text, int color_mode)
         }
 
         /* ImageMagick not available or failed, keep original */
-        free(gray_file);
-        unlink(gray_file);
+        if (gray_file) {
+            unlink(gray_file);
+            free(gray_file);
+        }
     }
 
     return out_file;
