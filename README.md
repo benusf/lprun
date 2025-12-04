@@ -40,20 +40,6 @@ printers from the terminal, without relying on heavy GUI utilities.
     ``` bash
     lprun --file document.pdf --printer "Canon G3020 series"
     ```
-
--   🧱 Clean, modular C project structure:
-
-        src/
-          disc.c
-          print.c
-          util.c
-        include/
-          disc.h
-          print.h
-          util.h
-
--   🛠 Build using standard Makefile or CMake
-
 ------------------------------------------------------------------------
 
 ## 📦 Build & Installation
