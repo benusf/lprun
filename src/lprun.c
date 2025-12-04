@@ -190,8 +190,8 @@ int main(int argc, char **argv) {
         return 0;
     }
     /* Check for history */
-    if (strcmp(argv[1], "--version") == 0i || strcmp(argv[1], "v") == 0) {
-        printf("lprun 1.2.0");
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+        printf("lprun 1.2.0\n");
         return 0;
     }
 
